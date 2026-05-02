@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StackTrends — Programming Language Analytics</title>
+  <meta name="description" content="Interactive dashboard visualizing Stack Overflow programming language trends." />
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <!-- Google Fonts (preconnect for speed) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+
+  <!-- Dashboard stylesheet -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+
+<!-- ═══════════════════════════ NAVBAR ═══════════════════════════ -->
+<nav class="navbar">
+  <div class="navbar-brand">
+    <!-- Sidebar toggle (mobile only) -->
+    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+      ☰
+    </button>
+    <div class="brand-icon">📈</div>
+    <span class="brand-name">Stack<span>Trends</span></span>
+  </div>
+
+  <div class="navbar-meta">
+    <span class="nav-badge">Stack Overflow Dataset</span>
+    <span class="live-dot">Live API</span>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════ LAYOUT ═══════════════════════════ -->
+<div class="layout">
+
+  <!-- ─────────────────── SIDEBAR ─────────────────── -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Section: Year Filter -->
+    <div>
+      <div class="sidebar-section-title">Filters</div>
+      <div class="filter-group">
+        <div class="filter-label">Year</div>
+        <select class="filter-select" id="yearSelect">
+          <option value="all">All Years</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Section: Chart Type -->
+    <div>
+      <div class="sidebar-section-title">Chart Style</div>
+      <div class="chart-type-btns">
+        <button class="chart-type-btn active" data-chart-type="line"
+                onclick="setChartType('line', this)">Line</button>
+        <button class="chart-type-btn" data-chart-type="area"
+                onclick="setChartType('area', this)">Area</button>
+      </div>
+    </div>
+
+    <!-- Section: Language Toggles -->
+    <div style="flex:1">
+      <div class="sidebar-section-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Languages</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn-sm" onclick="toggleAllLangs(true)"  title="Show all">All</button>
+          <button class="btn-sm" onclick="toggleAllLangs(false)" title="Hide all">None</button>
+        </div>
+      </div>
+      <div class="lang-toggles" id="langToggles">
+        <!-- Populated by JS -->
+        <div class="skeleton" style="height:34px;border-radius:6px;margin-bottom:4px"></div>
+        <div class="skeleton" style="height:34px;border-radius:6px;margin-bottom:4px"></div>
+        <div class="skeleton" style="height:34px;border-radius:6px;margin-bottom:4px"></div>
+        <div class="skeleton" style="height:34px;border-radius:6px;margin-bottom:4px"></div>
+        <div class="skeleton" style="height:34px;border-radius:6px"></div>
+      </div>
+    </div>
+
+    <!-- Footer note -->
+    <div>
+      <div class="sidebar-section-title">About</div>
+      <p style="font-size:0.72rem;color:var(--text-muted);line-height:1.6;padding:0 8px">
+        Data scraped from Stack Overflow (2022–2024). Normalized by total questions per year.
+      </p>
+    </div>
+
+  </aside>
+
+  <!-- ─────────────────── MAIN CONTENT ─────────────────── -->
+  <main class="main">
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <h1 class="page-title">Language <span>Trends</span></h1>
+      <p class="page-subtitle">
+        Normalized frequency of programming language tags on Stack Overflow over time
+      </p>
+    </div>
+
+    <!-- Stats Cards (populated by JS) -->
+    <div class="stats-grid" id="statsGrid">
+      <!-- Skeleton placeholders until JS loads -->
+    </div>
+
+    <!-- ── Main Trend Chart ── -->
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div>
+          <div class="chart-card-title">Tag Frequency Over Time</div>
+          <div class="chart-card-desc">Normalized share of questions per language, per year</div>
+        </div>
+        <div class="chart-actions">
+          <button class="btn-sm active" data-chart-type="line"
+                  onclick="setChartType('line', this)">Line</button>
+          <button class="btn-sm" data-chart-type="area"
+                  onclick="setChartType('area', this)">Area</button>
+        </div>
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="mainChart"></canvas>
+        <div class="chart-glow"></div>
+      </div>
+    </div>
+
+    <!-- ── Bottom Grid: Bar + Ranking ── -->
+    <div class="bottom-grid">
+
+      <!-- Bar Chart (snapshot) -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <div>
+            <div class="chart-card-title">
+              Snapshot — <span id="barChartYear" style="color:var(--accent)">...</span>
+            </div>
+            <div class="chart-card-desc">Relative share for selected year</div>
+          </div>
+        </div>
+        <div class="chart-wrapper" style="height:320px">
+          <canvas id="barChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Ranking List -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <div>
+            <div class="chart-card-title">Rankings</div>
+            <div class="chart-card-desc">Languages ordered by frequency share</div>
+          </div>
+        </div>
+        <div class="ranking-list" id="rankingList">
+          <!-- Skeleton -->
+          <div class="skeleton" style="height:38px;border-radius:8px"></div>
+          <div class="skeleton" style="height:38px;border-radius:8px"></div>
+          <div class="skeleton" style="height:38px;border-radius:8px"></div>
+          <div class="skeleton" style="height:38px;border-radius:8px"></div>
+          <div class="skeleton" style="height:38px;border-radius:8px"></div>
+        </div>
+      </div>
+
+    </div><!-- end bottom-grid -->
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span class="footer-text">
+        StackTrends &nbsp;·&nbsp; Data: Stack Overflow
+      </span>
+      <span class="footer-text">
+        Built with Flask + Chart.js
+      </span>
+    </footer>
+
+  </main><!-- end main -->
+</div><!-- end layout -->
+
+<!-- Dashboard logic -->
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
